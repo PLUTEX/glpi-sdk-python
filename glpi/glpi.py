@@ -690,6 +690,17 @@ class GLPI(object):
             GLPIs APIRest JSON formated with result of search in key 'data'.
         """
 
+        def field_to_int(field, field_map):
+            # if int given, use it directly
+            if isinstance(field, int) or field.isdigit():
+                return int(field)
+            # if name given, try to map to an int
+            elif field in field_map:
+                return field_map[field]
+            else:
+                raise GlpiInvalidArgument(
+                    'Cannot map field name "' + field + '" to a field id.')
+
         # Receive the possible field ids for type item_name
         # -> to avoid wrong lookups, use uid of fields, but strip item type:
         #    example: {"1": {"uid": "Computer.name"}} gets {"name": 1}
@@ -704,18 +715,8 @@ class GLPI(object):
 
         for idx, c in enumerate(params['criteria']):
             if 'field' in c and c['field'] is not None:
-                field_name = ""
-                # if int given, use it directly
-                if isinstance(c['field'], int) or c['field'].isdigit():
-                    field_name = int(c['field'])
-                # if name given, try to map to an int
-                elif c['field'] in field_map:
-                    field_name = field_map[c['field']]
-                else:
-                    raise GlpiInvalidArgument(
-                        'Cannot map field name "' + c['field'] + '" to ' +
-                        'a field id for '+str(idx+1)+'. criterion '+str(c))
-                params["criteria[%d][field]" % idx] = field_name
+                params["criteria[%d][field]" % idx] = field_to_int(
+                    c['field'], field_map)
             else:
                 raise GlpiInvalidArgument(
                     'Missing "field" parameter for ' + str(idx+1) +
@@ -737,6 +738,12 @@ class GLPI(object):
                 params["criteria[%d][link]" % idx] = c.get('link', '')
 
         del params['criteria']
+
+        if 'forcedisplay' in params:
+            for idx, field in enumerate(params['forcedisplay']):
+                params['forcedisplay[%d]' % idx] = field_to_int(field, field_map)
+
+            del params['forcedisplay']
 
         try:
             if not self.api_has_session():
