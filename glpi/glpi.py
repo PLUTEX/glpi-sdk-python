@@ -672,7 +672,7 @@ class GLPI(object):
         else:
             return {"message_error": "Unable to find a valid criteria."}
 
-    def search_engine(self, item_name, criteria):
+    def search_engine(self, item_name, params):
         """
         Call GLPI's search engine syntax.
 
@@ -702,9 +702,7 @@ class GLPI(object):
                                     flags=re.IGNORECASE)
                 field_map[field_name] = int(field_id)
 
-        params = {}
-
-        for idx, c in enumerate(criteria['criteria']):
+        for idx, c in enumerate(params['criteria']):
             if 'field' in c and c['field'] is not None:
                 field_name = ""
                 # if int given, use it directly
@@ -737,6 +735,8 @@ class GLPI(object):
                     'Missing link type for '+str(idx+1)+'. criterion '+str(c))
             elif 'link' in c:
                 params["criteria[%d][link]" % idx] = c.get('link', '')
+
+        del params['criteria']
 
         try:
             if not self.api_has_session():
