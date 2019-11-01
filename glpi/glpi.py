@@ -397,7 +397,7 @@ class GlpiService(object):
 
         return response.json()
 
-    def search_engine(self, search_query):
+    def search_engine(self, search_query, params):
         """
         Search an item by URI.
         Use GLPI search engine passing parameter by URI.
@@ -405,7 +405,7 @@ class GlpiService(object):
         operations.
         """
         new_uri = "%s/%s" % (self.uri, search_query)
-        response = self.request('GET', new_uri, accept_json=True)
+        response = self.request('GET', new_uri, params=params, accept_json=True)
 
         return response.json()
 
@@ -702,14 +702,9 @@ class GLPI(object):
                                     flags=re.IGNORECASE)
                 field_map[field_name] = int(field_id)
 
-        uri_query = "%s?" % item_name
+        params = {}
 
         for idx, c in enumerate(criteria['criteria']):
-            # build field argument
-            if idx == 0:
-                uri = ""
-            else:
-                uri = "&"
             if 'field' in c and c['field'] is not None:
                 field_name = ""
                 # if int given, use it directly
@@ -722,25 +717,18 @@ class GLPI(object):
                     raise GlpiInvalidArgument(
                         'Cannot map field name "' + c['field'] + '" to ' +
                         'a field id for '+str(idx+1)+'. criterion '+str(c))
-                uri = uri + "criteria[%d][field]=%d" % (idx, field_name)
+                params["criteria[%d][field]" % idx] = field_name
             else:
                 raise GlpiInvalidArgument(
                     'Missing "field" parameter for ' + str(idx+1) +
                     'the criteria: ' + str(c))
 
             # build value argument
-            if 'value' not in c or c['value'] is None:
-                uri = uri + "&criteria[%d][value]=" % (idx)
-            else:
-                uri = uri + "&criteria[%d][value]=%s" % (idx, c['value'])
+            params["criteria[%d][value]" % idx] = c.get('value', '')
 
             # build searchtype argument
             # -> optional! defaults to "contains" on the server if empty
-            if 'searchtype' in c and c['searchtype'] is not None:
-                uri = (uri + "&criteria[%d][searchtype]=%s".format(idx,
-                       c['searchtype']))
-            else:
-                uri = uri + "&criteria[%d][searchtype]=" % (idx)
+            params["criteria[%d][searchtype]" % idx] = c.get('searchtype', '')
 
             # link is optional for 1st criterion according to docs...
             # -> error if not present but more than one criterion
@@ -748,18 +736,14 @@ class GLPI(object):
                 raise GlpiInvalidArgument(
                     'Missing link type for '+str(idx+1)+'. criterion '+str(c))
             elif 'link' in c:
-                uri = uri + "&criteria[%d][link]=%s" % (idx, c['link'])
-
-            # add this criterion to the query
-            uri_query = uri_query + uri
+                params["criteria[%d][link]" % idx] = c.get('link', '')
 
         try:
             if not self.api_has_session():
                 self.init_api()
 
             self.update_uri('search')
-            # TODO: is this call correct? shouldn't this be search_engine()?
-            return self.api_rest.search_options(uri_query)
+            return self.api_rest.search_engine(item_name, params)
 
         except GlpiException as e:
             return {'{}'.format(e)}
