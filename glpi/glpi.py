@@ -713,29 +713,48 @@ class GLPI(object):
                                     flags=re.IGNORECASE)
                 field_map[field_name] = int(field_id)
 
-        for idx, c in enumerate(params['criteria']):
-            if 'field' in c and c['field'] is not None:
-                params["criteria[%d][field]" % idx] = field_to_int(
-                    c['field'], field_map)
-            else:
-                raise GlpiInvalidArgument(
-                    'Missing "field" parameter for ' + str(idx+1) +
-                    'the criteria: ' + str(c))
+        def build_params_from_criteria(criteria, prefix):
+            for idx, c in enumerate(criteria):
+                if 'criteria' in c:
+                    yield from build_params_from_criteria(
+                        c['criteria'],
+                        '%s[%d][criteria]' % (prefix, idx),
+                    )
+                elif 'field' in c and c['field'] is not None:
+                    yield (
+                        "%s[%d][field]" % (prefix, idx),
+                        field_to_int(c['field'], field_map),
+                    )
+                else:
+                    raise GlpiInvalidArgument(
+                        'Missing "field" parameter for ' + str(idx+1) +
+                        'the criteria: ' + str(c))
 
-            # build value argument
-            params["criteria[%d][value]" % idx] = c.get('value', '')
+                # build value argument
+                yield (
+                    "%s[%d][value]" % (prefix, idx),
+                    c.get('value', ''),
+                )
 
-            # build searchtype argument
-            # -> optional! defaults to "contains" on the server if empty
-            params["criteria[%d][searchtype]" % idx] = c.get('searchtype', '')
+                # build searchtype argument
+                # -> optional! defaults to "contains" on the server if empty
+                yield (
+                    "%s[%d][searchtype]" % (prefix, idx),
+                    c.get('searchtype', ''),
+                )
 
-            # link is optional for 1st criterion according to docs...
-            # -> error if not present but more than one criterion
-            if 'link' not in c and idx > 0:
-                raise GlpiInvalidArgument(
-                    'Missing link type for '+str(idx+1)+'. criterion '+str(c))
-            elif 'link' in c:
-                params["criteria[%d][link]" % idx] = c.get('link', '')
+                if 'link' in c:
+                    yield (
+                        "%s[%d][link]" % (prefix, idx),
+                        c['link'],
+                    )
+                elif idx > 0:
+                    # link is optional for 1st criterion according to docs...
+                    # -> error if not present but more than one criterion
+                    raise GlpiInvalidArgument(
+                        'Missing link type for '+str(idx+1)+'. criterion '+str(c))
+
+        params.update(build_params_from_criteria(params['criteria'], 'criteria'))
 
         del params['criteria']
 
