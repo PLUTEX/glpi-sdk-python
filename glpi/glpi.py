@@ -716,10 +716,11 @@ class GLPI(object):
         def build_params_from_criteria(criteria, prefix):
             for idx, c in enumerate(criteria):
                 if 'criteria' in c:
-                    yield from build_params_from_criteria(
+                    for param in build_params_from_criteria(
                         c['criteria'],
                         '%s[%d][criteria]' % (prefix, idx),
-                    )
+                    ):
+                        yield param
                 elif 'field' in c and c['field'] is not None:
                     yield (
                         "%s[%d][field]" % (prefix, idx),
